@@ -2,23 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/System.hpp>
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <string>
-#include <map>
-#include <algorithm>
-#include <memory>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <future>
-#include <chrono>
-#include <random>
-#include <functional>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
+
 
 int main()
 {
