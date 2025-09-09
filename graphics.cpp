@@ -5,6 +5,10 @@
 const unsigned int WINDOW_WIDTH = 800;
 const unsigned int WINDOW_HEIGHT = 600;
 
+
+const unsigned int MAP_WIDTH = 1000;
+const unsigned int MAP_HEIGHT = 800;
+
 // The speed at which the player moves
 const float PLAYER_SPEED = 200.0f; 
 
@@ -23,9 +27,6 @@ int main() {
     // Create a sprite for the map using the texture
     sf::Sprite mapSprite(mapTexture);
 
-    // Create a view to display a portion of the map
-    sf::View view(sf::FloatRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT));
-
     // Load the player texture
     sf::Texture playerTexture;
     if (!playerTexture.loadFromFile("fw190.png")) {
@@ -38,6 +39,10 @@ int main() {
     playerSprite.setScale(0.2f, 0.2f);
     // Set the initial position of the player
     playerSprite.setPosition(mapSprite.getLocalBounds().width / 2.0f, mapSprite.getLocalBounds().height / 2.0f);
+
+    // Create a view to display a portion of the map
+    sf::View view(sf::FloatRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT));
+    view.setCenter(playerSprite.getPosition());
 
     // Create a rectangle shape for the selection border
     sf::RectangleShape selectionBorder;
@@ -59,6 +64,10 @@ int main() {
 
     // Margin from the edge of the view to trigger panning when dragging player
     const float PAN_MARGIN = 50.0f;
+    // Add a factor to slow down panning speed
+    const float PAN_SPEED = 0.25f; // Lower is slower (try 0.1f - 0.2f for smoothness)
+
+    view.setCenter(playerSprite.getPosition());
 
     while (window.isOpen()) {
         sf::Event event;
@@ -66,6 +75,13 @@ int main() {
             if (event.type == sf::Event::Closed) {
                 window.close();
             }
+
+            // Keep map scale constant on window resize: show more map, don't zoom in/out
+            if (event.type == sf::Event::Resized) {
+                view.setSize(static_cast<float>(event.size.width), static_cast<float>(event.size.height));
+                // Optionally, keep the center where it was (already handled)
+            }
+
             // Mouse button pressed
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                 // Convert mouse position to world coordinates
@@ -121,13 +137,14 @@ int main() {
                     }
 
                     if (pan) {
-                        // Move the view by the negative of the panDelta in world coordinates
-                        view.move(panDelta);
+                        // Slow down the panning by multiplying to PAN_SPEED
+                        view.move(panDelta * PAN_SPEED);
                     }
                 } else if (panning && !playerSelected) {
                     sf::Vector2f panCurrent = mouseWorld;
                     sf::Vector2f panDelta = panStart - panCurrent;
-                    view.move(panDelta);
+                    // Slow down the panning by multiplying to PAN_SPEED
+                    view.move(panDelta * PAN_SPEED);
                     panStart = window.mapPixelToCoords(mousePixel); // update for smooth panning
                 }
             }
@@ -155,9 +172,9 @@ int main() {
         playerSprite.move(playerMovement);
 
         // Center the view on the player sprite only if not panning or dragging
-        if (!panning && !(dragging && playerSelected)) {
-            view.setCenter(playerSprite.getPosition());
-        }
+//        if (!panning && !(dragging && playerSelected)) {
+//            view.setCenter(playerSprite.getPosition());
+//        }
 
         // Update selection border position and size if selected
         if (playerSelected) {
