@@ -35,6 +35,7 @@ int main() {
 
     // Create a sprite for the player
     sf::Sprite playerSprite(playerTexture);
+    playerSprite.setScale(0.2f, 0.2f);
     // Set the initial position of the player
     playerSprite.setPosition(mapSprite.getLocalBounds().width / 2.0f, mapSprite.getLocalBounds().height / 2.0f);
 
