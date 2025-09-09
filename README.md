@@ -1,4 +1,4 @@
-# graphics
+# README File for graphics project
 #
 The following commands were use to build the hello world example.
 
