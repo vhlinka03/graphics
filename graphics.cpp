@@ -1,73 +1,67 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <vector>
+#include "Map.h"
+#include "Spirit.h"
 
-// The size of the window
-const unsigned int WINDOW_WIDTH = 800;
-const unsigned int WINDOW_HEIGHT = 600;
-
-
-const unsigned int MAP_WIDTH = 1000;
-const unsigned int MAP_HEIGHT = 800;
-
-// The speed at which the player moves
-const float PLAYER_SPEED = 200.0f; 
+const unsigned int WINDOW_WIDTH = 1500;
+const unsigned int WINDOW_HEIGHT = 1000;
+const float PLAYER_SPEED = 200.0f;
 
 int main() {
-    // Create the main window
-    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D Map View with Movable Item");
+    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D Map View with Multiple Spirits");
     window.setFramerateLimit(60);
 
-    // Load the main map texture
-    sf::Texture mapTexture;
-    if (!mapTexture.loadFromFile("map.png")) {
-        std::cerr << "Error: Could not load map.png" << std::endl;
-        return 1;
+    Map map("map.png");
+
+    // --- Create multiple spirits for each player ---
+    std::vector<Spirit> germanSpirits;
+    std::vector<Spirit> americanSpirits;
+
+    // German spirits (red border)
+    Spirit fw190("fw190.png", 0.2f);
+
+//    germanSpirits.emplace_back("fw190.png", 0.2f);
+    germanSpirits.emplace_back(fw190);
+    germanSpirits.back().setPosition(map.getWidth() / 3.0f, map.getHeight() / 2.0f);
+    germanSpirits.emplace_back(fw190);
+    germanSpirits.back().setPosition(map.getWidth() / 3.0f, map.getHeight() / 3.0f);
+
+    // American spirits (blue border)
+    Spirit p51("p51.png", 0.2f);
+    americanSpirits.emplace_back(p51);
+    americanSpirits.back().setPosition(map.getWidth() * 2.0f / 3.0f, map.getHeight() / 2.0f);
+    americanSpirits.emplace_back(p51);
+    americanSpirits.back().setPosition(map.getWidth() * 2.0f / 3.0f, map.getHeight() / 3.0f);
+
+    // Set blue border for American spirits
+    for (auto& spirit : americanSpirits) {
+        spirit.setSelected(false);
+        spirit.updateSelectionBorder();
+        spirit.setBorderColor(sf::Color::Blue); // Make border blue
     }
-
-    // Create a sprite for the map using the texture
-    sf::Sprite mapSprite(mapTexture);
-
-    // Load the player texture
-    sf::Texture playerTexture;
-    if (!playerTexture.loadFromFile("fw190.png")) {
-        std::cerr << "Error: Could not load player.png" << std::endl;
-        return 1;
+    // Set red border for German spirits
+    for (auto& spirit : germanSpirits) {
+        spirit.setSelected(false);
+        spirit.updateSelectionBorder();
+        spirit.setBorderColor(sf::Color::Red); // Make border red
     }
-
-    // Create a sprite for the player
-    sf::Sprite playerSprite(playerTexture);
-    playerSprite.setScale(0.2f, 0.2f);
-    // Set the initial position of the player
-    playerSprite.setPosition(mapSprite.getLocalBounds().width / 2.0f, mapSprite.getLocalBounds().height / 2.0f);
 
     // Create a view to display a portion of the map
     sf::View view(sf::FloatRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT));
-    view.setCenter(playerSprite.getPosition());
+    view.setCenter(map.getWidth() / 2.0f, map.getHeight() / 2.0f);
 
-    // Create a rectangle shape for the selection border
-    sf::RectangleShape selectionBorder;
-    selectionBorder.setFillColor(sf::Color::Transparent);
-    selectionBorder.setOutlineColor(sf::Color::Red);
-    selectionBorder.setOutlineThickness(3.0f);
-    selectionBorder.setSize(sf::Vector2f(playerSprite.getGlobalBounds().width, playerSprite.getGlobalBounds().height));
-    selectionBorder.setOrigin(playerSprite.getOrigin());
-
-    // Variable to track elapsed time for consistent movement
     sf::Clock clock;
 
     // Variables for selection and dragging
-    bool playerSelected = false;
+    Spirit* selectedSpirit = nullptr;
     bool dragging = false;
     sf::Vector2f dragOffset;
     bool panning = false;
     sf::Vector2f panStart;
 
-    // Margin from the edge of the view to trigger panning when dragging player
     const float PAN_MARGIN = 50.0f;
-    // Add a factor to slow down panning speed
-    const float PAN_SPEED = 0.25f; // Lower is slower (try 0.1f - 0.2f for smoothness)
-
-    view.setCenter(playerSprite.getPosition());
+    const float PAN_SPEED = 0.25f;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -75,132 +69,117 @@ int main() {
             if (event.type == sf::Event::Closed) {
                 window.close();
             }
-
-            // Keep map scale constant on window resize: show more map, don't zoom in/out
             if (event.type == sf::Event::Resized) {
                 view.setSize(static_cast<float>(event.size.width), static_cast<float>(event.size.height));
-                // Optionally, keep the center where it was (already handled)
             }
-
-            // Mouse button pressed
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
-                // Convert mouse position to world coordinates
                 sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
                 sf::Vector2f mouseWorld = window.mapPixelToCoords(mousePixel);
 
-                // Check if mouse is over playerSprite
-                if (playerSprite.getGlobalBounds().contains(mouseWorld)) {
-                    playerSelected = true;
+                selectedSpirit = nullptr;
+                // Check German spirits first (topmost last)
+                for (auto it = germanSpirits.rbegin(); it != germanSpirits.rend(); ++it) {
+                    if (it->getGlobalBounds().contains(mouseWorld)) {
+                        selectedSpirit = &(*it);
+                        break;
+                    }
+                }
+                // Then check American spirits
+                if (!selectedSpirit) {
+                    for (auto it = americanSpirits.rbegin(); it != americanSpirits.rend(); ++it) {
+                        if (it->getGlobalBounds().contains(mouseWorld)) {
+                            selectedSpirit = &(*it);
+                            break;
+                        }
+                    }
+                }
+                // Set selection states
+                for (auto& s : germanSpirits) s.setSelected(selectedSpirit == &s);
+                for (auto& s : americanSpirits) s.setSelected(selectedSpirit == &s);
+
+                if (selectedSpirit) {
                     dragging = true;
-                    dragOffset = playerSprite.getPosition() - mouseWorld;
+                    dragOffset = selectedSpirit->getPosition() - mouseWorld;
+                    selectedSpirit->setDragOffset(dragOffset);
                 } else {
-                    playerSelected = false;
                     panning = true;
                     panStart = mouseWorld;
                 }
             }
-            // Mouse button released
             if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left) {
                 dragging = false;
                 panning = false;
             }
-            // Mouse moved
             if (event.type == sf::Event::MouseMoved) {
                 sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
                 sf::Vector2f mouseWorld = window.mapPixelToCoords(mousePixel);
 
-                if (dragging && playerSelected) {
-                    // Move player
-                    playerSprite.setPosition(mouseWorld + dragOffset);
+                if (dragging && selectedSpirit) {
+                    selectedSpirit->setPosition(mouseWorld.x + selectedSpirit->getDragOffset().x,
+                                               mouseWorld.y + selectedSpirit->getDragOffset().y);
 
-                    // Get player's position in view coordinates
-                    sf::Vector2i playerInViewPixel = window.mapCoordsToPixel(playerSprite.getPosition(), view);
-                    sf::Vector2f playerInView(static_cast<float>(playerInViewPixel.x), static_cast<float>(playerInViewPixel.y));
+                    sf::Vector2i spiritInViewPixel = window.mapCoordsToPixel(selectedSpirit->getPosition(), view);
+                    sf::Vector2f spiritInView(static_cast<float>(spiritInViewPixel.x), static_cast<float>(spiritInViewPixel.y));
 
-                    // Check if player is near the edge of the view and pan if needed
                     bool pan = false;
                     sf::Vector2f panDelta(0.f, 0.f);
 
-                    if (playerInView.x < PAN_MARGIN) {
+                    if (spiritInView.x < PAN_MARGIN) {
                         pan = true;
-                        panDelta.x = playerInView.x - PAN_MARGIN;
-                    } else if (playerInView.x > WINDOW_WIDTH - PAN_MARGIN) {
+                        panDelta.x = spiritInView.x - PAN_MARGIN;
+                    } else if (spiritInView.x > WINDOW_WIDTH - PAN_MARGIN) {
                         pan = true;
-                        panDelta.x = playerInView.x - (WINDOW_WIDTH - PAN_MARGIN);
+                        panDelta.x = spiritInView.x - (WINDOW_WIDTH - PAN_MARGIN);
                     }
-                    if (playerInView.y < PAN_MARGIN) {
+                    if (spiritInView.y < PAN_MARGIN) {
                         pan = true;
-                        panDelta.y = playerInView.y - PAN_MARGIN;
-                    } else if (playerInView.y > WINDOW_HEIGHT - PAN_MARGIN) {
+                        panDelta.y = spiritInView.y - PAN_MARGIN;
+                    } else if (spiritInView.y > WINDOW_HEIGHT - PAN_MARGIN) {
                         pan = true;
-                        panDelta.y = playerInView.y - (WINDOW_HEIGHT - PAN_MARGIN);
+                        panDelta.y = spiritInView.y - (WINDOW_HEIGHT - PAN_MARGIN);
                     }
 
                     if (pan) {
-                        // Slow down the panning by multiplying to PAN_SPEED
                         view.move(panDelta * PAN_SPEED);
                     }
-                } else if (panning && !playerSelected) {
+                } else if (panning && !selectedSpirit) {
                     sf::Vector2f panCurrent = mouseWorld;
                     sf::Vector2f panDelta = panStart - panCurrent;
-                    // Slow down the panning by multiplying to PAN_SPEED
                     view.move(panDelta * PAN_SPEED);
-                    panStart = window.mapPixelToCoords(mousePixel); // update for smooth panning
+                    panStart = window.mapPixelToCoords(mousePixel);
                 }
             }
         }
 
-        // Calculate time since last frame
         sf::Time deltaTime = clock.restart();
 
-        // Handle player movement based on keyboard input (optional, can be removed if only mouse movement is desired)
-        sf::Vector2f playerMovement(0.0f, 0.0f);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
-            playerMovement.y -= PLAYER_SPEED * deltaTime.asSeconds();
+        // Keyboard movement for all spirits (arrows for German, WASD for American)
+        for (auto& spirit : germanSpirits) {
+            sf::Vector2f movement(0.f, 0.f);
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) movement.y -= PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) movement.y += PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) movement.x -= PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) movement.x += PLAYER_SPEED * deltaTime.asSeconds();
+            spirit.move(movement);
+            spirit.updateSelectionBorder();
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
-            playerMovement.y += PLAYER_SPEED * deltaTime.asSeconds();
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
-            playerMovement.x -= PLAYER_SPEED * deltaTime.asSeconds();
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-            playerMovement.x += PLAYER_SPEED * deltaTime.asSeconds();
-        }
-
-        // Move the player sprite (keyboard)
-        playerSprite.move(playerMovement);
-
-        // Center the view on the player sprite only if not panning or dragging
-//        if (!panning && !(dragging && playerSelected)) {
-//            view.setCenter(playerSprite.getPosition());
-//        }
-
-        // Update selection border position and size if selected
-        if (playerSelected) {
-            selectionBorder.setPosition(playerSprite.getPosition());
-            selectionBorder.setSize(sf::Vector2f(playerSprite.getGlobalBounds().width, playerSprite.getGlobalBounds().height));
-            selectionBorder.setOrigin(playerSprite.getOrigin());
+        for (auto& spirit : americanSpirits) {
+            sf::Vector2f movement(0.f, 0.f);
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) movement.y -= PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) movement.y += PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) movement.x -= PLAYER_SPEED * deltaTime.asSeconds();
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) movement.x += PLAYER_SPEED * deltaTime.asSeconds();
+            spirit.move(movement);
+            spirit.updateSelectionBorder();
         }
 
-        // Clear the window with black color
         window.clear(sf::Color::Black);
-
-        // Apply the view before drawing anything
         window.setView(view);
 
-        // Draw the map
-        window.draw(mapSprite);
+        map.draw(window);
+        for (const auto& spirit : germanSpirits) spirit.draw(window);
+        for (const auto& spirit : americanSpirits) spirit.draw(window);
 
-        // Draw the player
-        window.draw(playerSprite);
-
-        // Draw the selection border if selected
-        if (playerSelected) {
-            window.draw(selectionBorder);
-        }
-
-        // Display the contents of the window
         window.display();
     }
 
